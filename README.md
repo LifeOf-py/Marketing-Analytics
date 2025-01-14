@@ -60,6 +60,7 @@ but this number reduced by 5 during the 3 months before the campaign (i.e., user
 55 friends 3 months ago).
 
 **Ask:**
+
 The general task is to build the best predictive model for the next marketing campaign,
 i.e., for predicting likely adopters (that is, which current non-subscribers are likely to respond
 to the marketing campaign and sign up for the premium service within 6 months after the
