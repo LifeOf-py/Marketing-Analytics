@@ -28,7 +28,7 @@ unique identier )
 
 - avg friend male / real (between 0 and 1) / percentage of males among friends
 
-- friend country cnt / integer / number of dierent countries among friends of the current
+- friend country cnt / integer / number of diferent countries among friends of the current
 user
 
 - subscriber friend cnt / integer / number of friends who are subscribers of the premium
@@ -37,7 +37,7 @@ service
 - songsListened / integer / total number of tracks this user listened (or reported as
 listened)
 
-- lovedTracks / integer / total number of dierent songs that the user \liked"
+- lovedTracks / integer / total number of diferent songs that the user \liked"
 
 - posts / integer / number of forum or discussion board posts made by the user
 
