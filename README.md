@@ -1,6 +1,6 @@
 # Marketing-Analytics
 
-Marketing Campaign - Customer Targeting Tool<https://marketing-decisions-mayank.streamlit.app/>
+[Marketing Campaign - Customer Targeting Tool](https://marketing-decisions-mayank.streamlit.app)
 
 **Problem Statement:**
 
