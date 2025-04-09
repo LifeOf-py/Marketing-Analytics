@@ -155,22 +155,26 @@ if uploaded_file:
 
             st.divider()
             st.markdown("### 🧠 What Influences Adoption?")
-            feature_text = top5_llm_df.to_string(index=False, header=False)
+
+            feature_text = "\n".join([f"{row['Feature']} ({row['Impact']:.3f})" for _, row in top5_llm_df.iterrows()])
             llm_prompt = f"""
-            Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription:
+            Given the following top features ranked by their impact on customer adoption:
+
             {feature_text}
 
-            Provide only business-relevant insights in table form.
+            Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription.
+
+            Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
             """
+
             llm_response = query_hf_mistral(llm_prompt)
             if llm_response and "LLM error" not in llm_response:
                 lines = llm_response.strip().split("\n")
                 parsed_rows = []
                 for line in lines:
-                    if ":" in line:
-                        parts = line.split(":", 1)
-                        if len(parts) == 2:
-                            parsed_rows.append((parts[0].strip(), parts[1].strip()))
+                    match = re.match(r"^(.*?)\s*[:\-]\s*(.*)", line)
+                    if match:
+                        parsed_rows.append((match.group(1).strip(), match.group(2).strip()))
 
                 if parsed_rows:
                     feature_df = pd.DataFrame(parsed_rows, columns=["Feature", "How does it impact?"])
@@ -187,7 +191,7 @@ if uploaded_file:
             """
             campaign_response = query_hf_mistral(rec_prompt)
             if campaign_response and "LLM error" not in campaign_response:
-                lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and re.match(r"^[0-9]+\\.", line)]
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and re.match(r"^[0-9]+\.\s", line)]
                 for line in lines:
                     st.markdown(f"- {line}")
             else:
