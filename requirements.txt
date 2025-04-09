@@ -7,3 +7,5 @@ shap
 matplotlib
 openai
 xgboost
+fpdf
+requests
