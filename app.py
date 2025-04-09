@@ -180,9 +180,10 @@ if uploaded_file:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
+            readable_features = ", ".join(top5_llm_df["Readable_Feature"].tolist())
             rec_prompt = f"""
-            Suggest 3 campaign ideas that marketing professionals can run to increase premium subscriptions.
-            Make each suggestion concise, relevant, and tied to customer behavior.
+            Suggest 3 concise and relevant marketing campaign ideas based on these features: {readable_features}.
+            Return each idea as a paragraph. Wrap the campaign title in double quotes.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
