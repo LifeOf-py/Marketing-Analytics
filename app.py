@@ -181,20 +181,18 @@ if uploaded_file:
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
-            Return each idea as a paragraph. Wrap the campaign title in double quotes. Do not number the ideas.
+            Given the following top features ranked by their impact on customer adoption:
+            Feature Impact
+            {' '.join(f"{row['Readable_Feature']} {row['Impact']:.6f}" for _, row in top5_llm_df.iterrows())}
+
+            Based on the features provided, here are the top insights for marketing strategy:
+            For each feature, explain what user behavior it captures and how it might relate to premium adoption.
+            Provide only business-relevant insights in bullet format. Wrap campaign title in double quotes.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
-                pattern = r'"(.*?)":\s*(.*?)(?=\n\s*"|\Z)'
-                matches = re.findall(pattern, campaign_response, flags=re.DOTALL)
-                if matches:
-                    for title, desc in matches:
-                        desc = re.sub(r"\s+", " ", desc.strip())
-                        st.markdown(f"- **{title.strip()}**: {desc}")
-                else:
-                    st.warning("LLM campaign ideas could not be parsed.")
+                st.markdown(campaign_response)
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
 
