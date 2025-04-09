@@ -7,15 +7,31 @@ import joblib
 import shap
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score
-from transformers import pipeline
+import os
+import requests
 
 # Load model and scaler
 bundle = joblib.load("marketing_classifier_bundle.pkl")
 model = bundle["model"]
 scaler = bundle["scaler"]
 
-# Setup LLM (Mistral via Hugging Face Inference API)
-hf_model = pipeline("text-generation", model="mistralai/Mistral-7B-Instruct-v0.1")
+# --- Hugging Face Inference API Setup ---
+HF_API_TOKEN = st.secrets["HF_API_TOKEN"] if "HF_API_TOKEN" in st.secrets else os.getenv("HF_API_TOKEN")
+headers = {
+    "Authorization": f"Bearer {HF_API_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+# Define HF text generation call
+HF_MODEL_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
+
+def query_hf_mistral(prompt, max_tokens=512):
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_new_tokens": max_tokens}
+    }
+    response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
+    return response.json()[0]['generated_text']
 
 # --- Custom Style ---
 pink = "#f08ebc"
@@ -76,34 +92,36 @@ if uploaded_file:
             st.download_button("📥 Download Predictions", data=csv_download, file_name="predicted_customers.csv", mime='text/csv')
 
         with tabs[1]:
-            st.subheader("📊 Campaign ROI Summary")
-            cutoff = int(len(df_result) * top_k_percent / 100)
-            top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
-            n_targeted = len(top_customers)
-            n_predicted_adopters = top_customers["Predicted_Adopter"].sum()
+            # ROI Summary and SHAP layout in 2 columns
+            st.subheader("💹 Campaign Summary & Insights")
+            col1, col2 = st.columns([1.2, 1.8])
 
-            total_cost = n_targeted * cost_per_customer
-            total_revenue = n_predicted_adopters * revenue_per_conversion
-            roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
+            with col1:
+                st.markdown("#### 📊 Campaign ROI Summary")
+                cutoff = int(len(df_result) * top_k_percent / 100)
+                top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
+                n_targeted = len(top_customers)
+                n_predicted_adopters = top_customers["Predicted_Adopter"].sum()
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("🎯 Targeted Customers", n_targeted)
-            col2.metric("📈 Expected Adopters", int(n_predicted_adopters))
-            col3.metric("💰 Estimated ROI", f"{roi:.2f}")
+                total_cost = n_targeted * cost_per_customer
+                total_revenue = n_predicted_adopters * revenue_per_conversion
+                roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
+
+                st.metric("🎯 Targeted Customers", n_targeted)
+                st.metric("📈 Expected Adopters", int(n_predicted_adopters))
+                st.metric("💰 Estimated ROI", f"{roi:.2f}")
+
+            with col2:
+                st.markdown("#### 🔍 Top Features Influencing Adoption")
+                explainer = shap.Explainer(model, X_scaled)
+                shap_values = explainer(X_scaled)
+                fig = plt.figure(figsize=(5, 3.5))
+                shap.plots.beeswarm(shap_values, max_display=10, show=False)
+                st.pyplot(fig)
 
             st.divider()
 
-            st.subheader("🔎 Top Features Influencing Adoption")
-            explainer = shap.Explainer(model, X_scaled)
-            shap_values = explainer(X_scaled)
-
-            fig = plt.figure(figsize=(6, 3.8))
-            shap.plots.beeswarm(shap_values, max_display=10, show=False)
-            st.pyplot(fig)
-
-            st.divider()
-
-            st.subheader("🤖 What Influences Adoption?")
+            st.markdown("### 🧠 What Influences Adoption?")
             top_features = shap_values.abs.mean(0).values
             feature_names = X_scaled.columns
             top_feature_df = pd.DataFrame({"Feature": feature_names, "Impact": top_features})
@@ -118,13 +136,11 @@ if uploaded_file:
             Provide only business-relevant insights.
             """
 
-            llm_response = hf_model(llm_prompt, max_new_tokens=512)[0]['generated_text']
+            llm_response = query_hf_mistral(llm_prompt)
             feature_explanations = llm_response.split("\n")
-
-            st.markdown("### 🧩 Feature Behavior Table")
             clean_rows = [(line.split(":")[0], line.split(":")[1]) for line in feature_explanations if ":" in line]
             feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
-            st.dataframe(feature_df, use_container_width=True)
+            st.table(feature_df)
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
@@ -133,12 +149,8 @@ if uploaded_file:
             Make each suggestion concise, relevant, and tied to customer behavior.
             """
 
-            campaign_response = hf_model(rec_prompt, max_new_tokens=512)[0]['generated_text']
-            campaign_points = campaign_response.split("\n")
-
-            for pt in campaign_points:
-                if pt.strip().startswith("1.") or pt.strip().startswith("2.") or pt.strip().startswith("3."):
-                    st.markdown(pt.strip())
+            campaign_response = query_hf_mistral(rec_prompt)
+            st.markdown(campaign_response)
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
