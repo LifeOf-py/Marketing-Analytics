@@ -178,7 +178,8 @@ if uploaded_file:
             explanation_response = query_hf_mistral(explanation_prompt)
             parsed_table = parse_explanation_to_df(explanation_response)
 
-            st.table(parsed_table)
+            for i, row in parsed_table.iterrows():
+                st.markdown(f"**{row['Feature']}**: {row['How does it impact?']}")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
