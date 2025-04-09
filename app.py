@@ -180,16 +180,16 @@ if uploaded_file:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
-             rec_prompt = f"""
+            rec_prompt = f"""
              Based on these top features: {', '.join(top5_llm_df['Feature'].tolist())},
              suggest 3 concise and relevant marketing campaign ideas to increase premium subscriptions. Tie each idea to specific customer behavior.
              """
-             campaign_response = query_hf_mistral(rec_prompt)
-             if campaign_response and "LLM error" not in campaign_response:
+            campaign_response = query_hf_mistral(rec_prompt)
+            if campaign_response and "LLM error" not in campaign_response:
                  lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and re.match(r"^[0-9]+\.\s", line)]
                  for line in lines:
                      st.markdown(f"- {line}")
-             else:
+            else:
                  st.warning("LLM recommendation could not be generated. Please try again later.")
 
     except Exception as e:
