@@ -185,7 +185,7 @@ if uploaded_file:
             rec_prompt = f"""
             Suggest 3 distinct and creative marketing campaign ideas based on these features: {readable_features}.
             Each campaign should be unique, focused on a different user behavior, and described in one paragraph.
-            Wrap the campaign title in double quotes.
+            Return each idea as a paragraph. Wrap the campaign title in double quotes.
             """
             
             campaign_response = query_hf_mistral(rec_prompt)
