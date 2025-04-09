@@ -160,19 +160,38 @@ if uploaded_file:
             llm_prompt = f"""
             What are the top insights for marketing strategy given these features:
             {feature_text}
-            """
 
+            Based on the features provided, here are the top insights for marketing strategy:
+            """
             llm_response = query_hf_mistral(llm_prompt)
-            st.code(llm_response)
+
+            if llm_response and "LLM error" not in llm_response:
+                pattern = re.compile(r"\d+\.\s*(.*?)\s*\((.*?)\)\:\s*(.*)")
+                parsed_rows = []
+                for line in llm_response.split("\n"):
+                    match = pattern.match(line.strip())
+                    if match:
+                        feat, impact, desc = match.groups()
+                        parsed_rows.append((feat.strip(), desc.strip()))
+
+                if parsed_rows:
+                    st.table(pd.DataFrame(parsed_rows, columns=["Feature", "How does it impact?"]))
+                else:
+                    st.warning("LLM explanation could not be parsed. Please try again later.")
+            else:
+                st.warning("LLM explanation could not be generated. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Given these influential features for premium subscription: {', '.join(top5_llm_df['Feature'].tolist())},
-            what campaign strategies or targeting ideas would you suggest?
+            Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Feature'].tolist())}.
             """
-
             campaign_response = query_hf_mistral(rec_prompt)
-            st.code(campaign_response)
+
+            if campaign_response and "LLM error" not in campaign_response:
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip().startswith(tuple("123456789"))]
+                st.markdown("\n".join([f"- {line}" for line in lines]))
+            else:
+                st.warning("LLM recommendation could not be generated. Please try again later.")
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
