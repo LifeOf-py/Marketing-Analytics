@@ -187,9 +187,14 @@ if uploaded_file:
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
-                lines = [line.strip() for line in campaign_response.split("\n") if line.strip().startswith(tuple("123456789"))]
-                cleaned = [re.sub(r'^\d+\.\s+"([^"]+)":', r'**\1**:', line) for line in lines]
-                st.markdown("\n\n".join(cleaned))
+                pattern = r'"(.*?)":\s*(.*?)(?=\n\s*\d+\.|\Z)'
+                matches = re.findall(pattern, campaign_response, flags=re.DOTALL)
+                if matches:
+                    for title, desc in matches:
+                        desc = re.sub(r"\s+", " ", desc.strip())
+                        st.markdown(f"- **{title.strip()}**: {desc}")
+                else:
+                    st.warning("LLM campaign ideas could not be parsed.")
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
 
