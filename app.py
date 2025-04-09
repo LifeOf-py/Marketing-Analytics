@@ -181,13 +181,8 @@ if uploaded_file:
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Given the following top features ranked by their impact on customer adoption:
-            Feature Impact
-            {' '.join(f"{row['Readable_Feature']} {row['Impact']:.6f}" for _, row in top5_llm_df.iterrows())}
-
-            Based on the features provided, here are the top insights for marketing strategy:
-            For each feature, explain what user behavior it captures and how it might relate to premium adoption.
-            Provide only business-relevant insights in bullet format. Wrap campaign title in double quotes.
+            Suggest 3 campaign ideas that marketing professionals can run to increase premium subscriptions.
+            Make each suggestion concise, relevant, and tied to customer behavior.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
@@ -195,7 +190,7 @@ if uploaded_file:
                 st.markdown(campaign_response)
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
-
+                
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
 else:
