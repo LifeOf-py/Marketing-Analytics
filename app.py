@@ -180,12 +180,6 @@ if uploaded_file:
             explanation_response = query_hf_mistral(explanation_prompt)
             st.markdown(explanation_response)
 
-            if parsed_table is not None and not parsed_table.empty:
-                for i, row in parsed_table.iterrows():
-                    st.markdown(f"**{row['Feature']}**: {row['How does it impact?']}")
-            else:
-                st.warning("LLM explanation could not be parsed. Please try again later.")
-
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Feature'].tolist())}.
