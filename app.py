@@ -182,7 +182,7 @@ if uploaded_file:
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
-            Return each idea starting with a number and wrap the campaign title in double quotes.
+            Return each idea as a paragraph. Wrap the campaign title in double quotes.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
