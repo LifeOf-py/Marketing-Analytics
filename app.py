@@ -35,9 +35,6 @@ def query_hf_mistral(prompt, max_tokens=512):
         result = response.json()
         if isinstance(result, list) and 'generated_text' in result[0]:
             full_text = result[0]['generated_text']
-            explanation_start = re.split(r"\n?\s*1\.\s*", full_text, maxsplit=1)
-            if len(explanation_start) == 2:
-                return "1. " + explanation_start[1].strip()
             return full_text.strip()
         elif isinstance(result, dict) and 'error' in result:
             return f"LLM error: unexpected response: {result}"
@@ -160,23 +157,24 @@ if uploaded_file:
             st.divider()
             st.markdown("### 🧠 What Influences Adoption?")
 
-            def parse_numbered_explanation(raw_text):
-                pattern = r"\d+\.\s*(.*?):\s*(.+)"
-                matches = re.findall(pattern, raw_text)
-                return pd.DataFrame(matches, columns=["Feature", "How does it impact?"]) if matches else None
+            def parse_explanation_to_df(raw_text):
+                rows = []
+                for line in raw_text.splitlines():
+                    match = re.match(r"^\d+\.\s+(.*?):\s+(.*)", line.strip())
+                    if match:
+                        rows.append((match.group(1), match.group(2)))
+                return pd.DataFrame(rows, columns=["Feature", "How does it impact?"])
 
-            explanation_prompt = (
-                "Explain how the following features relate to user behavior and their likelihood to adopt premium subscription. "
-                "Respond with short, business-friendly explanations for each feature as a numbered list. "
-                "Use the format: 1. <Feature>: <Explanation>\n\n" +
-                "\n".join(f"{i+1}. {row['Feature']}" for i, row in top5_llm_df.iterrows())
-            )
+            explanation_prompt = "\n".join([
+                "For each of the following features, explain what user behavior it captures and how it might relate to premium subscription:",
+                *[f"{i+1}. {row['Feature']}" for i, row in top5_llm_df.iterrows()]
+            ])
 
             explanation_response = query_hf_mistral(explanation_prompt)
-            parsed_table = parse_numbered_explanation(explanation_response)
+            parsed_table = parse_explanation_to_df(explanation_response)
 
             if parsed_table is not None and not parsed_table.empty:
-                st.table(parsed_table)
+                st.table(parsed_table.head(5))
             else:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
