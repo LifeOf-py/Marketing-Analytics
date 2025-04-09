@@ -164,10 +164,19 @@ if uploaded_file:
             """
             llm_response = query_hf_mistral(llm_prompt)
             if llm_response and "LLM error" not in llm_response:
-                explanation_lines = [line for line in llm_response.split("\n") if ":" in line and len(line.split(":")) == 2]
-                clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in explanation_lines]
-                feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
-                st.table(feature_df)
+                lines = llm_response.strip().split("\n")
+                parsed_rows = []
+                for line in lines:
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        if len(parts) == 2:
+                            parsed_rows.append((parts[0].strip(), parts[1].strip()))
+
+                if parsed_rows:
+                    feature_df = pd.DataFrame(parsed_rows, columns=["Feature", "How does it impact?"])
+                    st.table(feature_df)
+                else:
+                    st.warning("LLM explanation could not be parsed. Please try again later.")
             else:
                 st.warning("LLM explanation could not be generated. Please try again later.")
 
