@@ -200,7 +200,7 @@ if uploaded_file:
                             current_title = f"**{title_match.group(1)}**"
                     else:
                         if current_title:
-                            formatted.append(f"  -- {line}")
+                            formatted.append(f"  - {line}")
                             current_title = None
                 if current_title:
                     formatted.append(f"- {current_title}")
