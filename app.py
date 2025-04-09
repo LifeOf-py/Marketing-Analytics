@@ -174,8 +174,8 @@ if uploaded_file:
             For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
             Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
             """
-
-            print(explanation_prompt)
+            explanation_response = query_hf_mistral(explanation_prompt)
+            st.markdown(explanation_response)
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
