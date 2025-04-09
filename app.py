@@ -42,6 +42,33 @@ def query_hf_mistral(prompt, max_tokens=512):
     except Exception as e:
         return f"LLM error: {str(e)}"
 
+# --- Custom HTML Table Renderer with Wider Feature Column ---
+def render_wide_feature_table(df):
+    styles = """
+    <style>
+    .custom-table thead th:first-child {
+        width: 200px !important;
+    }
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .custom-table th, .custom-table td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+    </style>
+    """
+
+    html = styles + '<table class="custom-table"><thead><tr><th>Feature</th><th>How does it impact?</th></tr></thead><tbody>'
+    for _, row in df.iterrows():
+        html += f"<tr><td>{row['Feature']}</td><td>{row['How does it impact?']}</td></tr>"
+    html += "</tbody></table>"
+
+    st.markdown(html, unsafe_allow_html=True)
+
 # --- Feature Name Mapping ---
 feature_name_map = {
     "avg_friend_age": "Avg Age of Friends",
@@ -115,7 +142,7 @@ if uploaded_file:
             st.download_button("📥 Download Predictions", data=csv_download, file_name="predicted_customers.csv", mime='text/csv')
 
         with tabs[1]:
-            st.subheader("✅ Campaign Summary & Insights")
+            st.subheader("Campaign Summary & Insights")
             col1, col2 = st.columns([1, 2], gap="large")
 
             with col1:
@@ -155,7 +182,7 @@ if uploaded_file:
                 st.pyplot(fig)
 
             st.divider()
-            st.markdown("### 🧠 What Influences Adoption?")
+            st.markdown("### ❓ What Influences Adoption?")
 
             def parse_explanation_to_df(raw_text):
                 rows = []
@@ -175,7 +202,7 @@ if uploaded_file:
 
             if parsed_table is not None and not parsed_table.empty:
                 ordered = pd.merge(top5_llm_df[["Readable_Feature"]], parsed_table, left_on="Readable_Feature", right_on="Feature", how="left")
-                st.table(ordered[["Feature", "How does it impact?"]])
+                render_wide_feature_table(ordered[["Feature", "How does it impact?"]])
             else:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
