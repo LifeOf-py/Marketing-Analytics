@@ -184,7 +184,7 @@ if uploaded_file:
             
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {readable_features}.
-            Each idea should be unique. Return each idea as a paragraph. Wrap the campaign title in double quotes.
+            Each idea should be unique. Return each idea as a paragraph for each campaign idea. Wrap the campaign title in double quotes.
             """
             
             campaign_response = query_hf_mistral(rec_prompt)
