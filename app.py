@@ -181,24 +181,48 @@ if uploaded_file:
 
             st.markdown("### 🎯 Campaign Recommendations")
             readable_features = ", ".join(top5_llm_df["Readable_Feature"].tolist())
+            
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {readable_features}.
             Return each idea as a paragraph. Wrap the campaign title in double quotes.
             """
+            
             campaign_response = query_hf_mistral(rec_prompt)
-
+            
             if campaign_response and "LLM error" not in campaign_response:
-                content_start = campaign_response.find("\n", campaign_response.find("\n") + 1)
-                cleaned_response = campaign_response[content_start:].strip()
-                lines = [line.strip() for line in cleaned_response.split("\n") if line.strip() and not line.strip().startswith("Avg") and not line.strip().startswith("Suggest")]
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
                 formatted = []
+                current_title = None
+                paragraph_accumulator = []
+            
                 for line in lines:
-                    line = re.sub(r"^\d+\.\s*", "", line)
-                    line = re.sub(r'"([^"]+?)"', r'**\1**', line)
-                    formatted.append(f"- {line}")
-                st.markdown("\n\n".join(formatted))
+                    # Skip irrelevant LLM prompt metadata
+                    if line.lower().startswith(("suggest", "return", "avg age", "songs listened", "loved tracks", "user age", "friends who subscribed")):
+                        continue
+            
+                    # Detect new campaign title
+                    if line.lower().startswith("campaign title:") or re.match(r'^"[^"]+"', line):
+                        if current_title and paragraph_accumulator:
+                            formatted.append(
+                                f"<li><b>📣 {current_title}</b><ul><li>{' '.join(paragraph_accumulator)}</li></ul></li>"
+                            )
+                        title_match = re.search(r'"([^"]+)"', line)
+                        current_title = title_match.group(1) if title_match else line.split(":")[-1].strip()
+                        paragraph_accumulator = []
+                    else:
+                        paragraph_accumulator.append(line)
+            
+                # Final one
+                if current_title and paragraph_accumulator:
+                    formatted.append(
+                        f"<li><b>📣 {current_title}</b><ul><li>{' '.join(paragraph_accumulator)}</li></ul></li>"
+                    )
+            
+                st.markdown("<ul>" + "\n".join(formatted) + "</ul>", unsafe_allow_html=True)
+            
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
+
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
