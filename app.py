@@ -34,7 +34,9 @@ def query_hf_mistral(prompt, max_tokens=512):
     try:
         result = response.json()
         if isinstance(result, list) and 'generated_text' in result[0]:
-            return result[0]['generated_text']
+            full_text = result[0]['generated_text']
+            generated_only = full_text.replace(prompt.strip(), "").strip()
+            return generated_only
         elif isinstance(result, dict) and 'error' in result:
             return f"LLM error: unexpected response: {result}"
         return f"LLM error: unrecognized output format"
@@ -159,7 +161,7 @@ if uploaded_file:
             def parse_explanation_to_df(raw_text):
                 lines = raw_text.splitlines()
                 table = []
-                pattern = r"^\s*\d+\.\s*(.*?)\s*\([0-9.]+\)\s*:\s*(.*)$"
+                pattern = r"^\s*\d+\.\s*(.*?)\s*\([0-9.]+\):\s*(.*)$"
                 for line in lines:
                     match = re.match(pattern, line)
                     if match:
@@ -174,8 +176,15 @@ if uploaded_file:
             For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
             Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
             """
+
             explanation_response = query_hf_mistral(explanation_prompt)
-            st.markdown(explanation_response)
+            parsed_table = parse_explanation_to_df(explanation_response)
+
+            if parsed_table is not None and not parsed_table.empty:
+                for i, row in parsed_table.iterrows():
+                    st.markdown(f"**{row['Feature']}**: {row['How does it impact?']}")
+            else:
+                st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
