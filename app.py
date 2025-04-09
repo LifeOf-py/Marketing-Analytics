@@ -172,16 +172,19 @@ if uploaded_file:
                         table.append((feature.strip(), explanation.strip()))
                 return pd.DataFrame(table, columns=["Feature", "How does it impact?"]) if table else None
 
-            explanation_prompt = f"""
-            Given the following top features ranked by their impact on customer adoption:
-            {top5_llm_df.to_string(index=False)}
-
-            For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
-            Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
-            """
-
+            explanation_prompt = (
+                "Explain how each of the following features influences premium subscription adoption:\n"
+                + "\n".join(f"{i+1}. {row['Feature']} ({row['Impact']:.3f})" for i, row in top5_llm_df.iterrows())
+            )
+            
             explanation_response = query_hf_mistral(explanation_prompt)
-            st.markdown(explanation_response)
+            parsed_table = parse_explanation_to_df(explanation_response)
+            
+            if parsed_table is not None and not parsed_table.empty:
+                st.table(parsed_table)
+            else:
+                st.warning("LLM explanation could not be parsed. Please try again later.")
+
             
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
