@@ -171,13 +171,7 @@ if uploaded_file:
             ])
 
             explanation_response = query_hf_mistral(explanation_prompt)
-            parsed_table = parse_explanation_to_df(explanation_response)
-
-            if parsed_table is not None and not parsed_table.empty:
-                ordered = pd.merge(top5_llm_df[["Readable_Feature"]], parsed_table, left_on="Readable_Feature", right_on="Feature", how="left")
-                st.table(ordered[["Feature", "How does it impact?"]])
-            else:
-                st.warning("LLM explanation could not be parsed. Please try again later.")
+            st.markdown(explanation_response)
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
