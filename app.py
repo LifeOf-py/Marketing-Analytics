@@ -160,35 +160,39 @@ if uploaded_file:
             def parse_explanation_to_df(raw_text):
                 rows = []
                 for line in raw_text.splitlines():
-                    match = re.match(r"^\d+\.\s+(.*?):\s+(.*)", line.strip())
+                    match = re.match(r"^[-\*]?\s*\**(.*?)\**\s*:\s*(.*)", line.strip())
                     if match:
                         rows.append((match.group(1).strip(), match.group(2).strip()))
                 return pd.DataFrame(rows, columns=["Feature", "How does it impact?"])
 
             explanation_prompt = "\n".join([
-                "For each of the following features, explain what user behavior it captures and how it might relate to premium subscription:",
-                *[f"{i+1}. {row['Readable_Feature']}" for i, row in top5_llm_df.iterrows()]
+                "Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription.",
+                *[f"- {row['Readable_Feature']}" for _, row in top5_llm_df.iterrows()]
             ])
 
             explanation_response = query_hf_mistral(explanation_prompt)
-            st.markdown(explanation_response)
+            parsed_table = parse_explanation_to_df(explanation_response)
+
+            if parsed_table is not None and not parsed_table.empty:
+                ordered = pd.merge(top5_llm_df[["Readable_Feature"]], parsed_table, left_on="Readable_Feature", right_on="Feature", how="left")
+                st.table(ordered[["Feature", "How does it impact?"]])
+            else:
+                st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
-            Return each idea as a paragraph. Wrap the campaign title in double quotes.
+            Given the following top features ranked by their impact on customer adoption:
+            Feature Impact
+            {' '.join(f"{row['Readable_Feature']} {row['Impact']:.6f}" for _, row in top5_llm_df.iterrows())}
+
+            Based on the features provided, here are the top insights for marketing strategy:
+            For each feature, explain what user behavior it captures and how it might relate to premium adoption.
+            Provide only business-relevant insights in bullet format. Wrap campaign title in double quotes.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
-                pattern = r'"(.*?)":\s*(.*?)(?=\n\s*\d+\.|\Z)'
-                matches = re.findall(pattern, campaign_response, flags=re.DOTALL)
-                if matches:
-                    for title, desc in matches:
-                        desc = re.sub(r"\s+", " ", desc.strip())
-                        st.markdown(f"- **{title.strip()}**: {desc}")
-                else:
-                    st.warning("LLM campaign ideas could not be parsed.")
+                st.markdown(campaign_response)
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
 
