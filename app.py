@@ -157,10 +157,10 @@ if uploaded_file:
             st.markdown("### 🧠 What Influences Adoption?")
             feature_text = top5_llm_df.to_string(index=False, header=False)
             llm_prompt = f"""
-            For the following top features ranked by their impact on customer adoption:
+            Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription:
             {feature_text}
 
-            Explain what user behavior each feature captures and how it might relate to adoption of a premium subscription. Keep it concise and business-focused.
+            Provide only business-relevant insights in table form.
             """
             llm_response = query_hf_mistral(llm_prompt)
             if llm_response and "LLM error" not in llm_response:
