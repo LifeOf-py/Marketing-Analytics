@@ -1,4 +1,4 @@
-""# app.py
+# app.py
 
 import streamlit as st
 import pandas as pd
@@ -9,9 +9,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score
 import os
 import requests
-
-# --- Page Config (must be first Streamlit command) ---
-st.set_page_config(page_title="Customer Adopter Prediction", layout="wide")
+import re
 
 # Load model and scaler
 bundle = joblib.load("marketing_classifier_bundle.pkl")
@@ -19,13 +17,12 @@ model = bundle["model"]
 scaler = bundle["scaler"]
 
 # --- Hugging Face Inference API Setup ---
-HF_API_TOKEN = st.secrets["HF_TOKEN"] if "HF_TOKEN" in st.secrets else os.getenv("HF_TOKEN")
+HF_API_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))
 headers = {
     "Authorization": f"Bearer {HF_API_TOKEN}",
     "Content-Type": "application/json"
 }
 
-# Define HF text generation call
 HF_MODEL_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
 
 def query_hf_mistral(prompt, max_tokens=512):
@@ -35,14 +32,14 @@ def query_hf_mistral(prompt, max_tokens=512):
     }
     response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
     try:
-        data = response.json()
-        if isinstance(data, list) and "generated_text" in data[0]:
-            return data[0]["generated_text"]
-        else:
-            return f"LLM error: unexpected response: {data}"
+        result = response.json()
+        if isinstance(result, list) and 'generated_text' in result[0]:
+            return result[0]['generated_text']
+        elif isinstance(result, dict) and 'error' in result:
+            return f"LLM error: unexpected response: {result}"
+        return f"LLM error: unrecognized output format"
     except Exception as e:
         return f"LLM error: {str(e)}"
-
 
 # --- Feature Name Mapping ---
 feature_name_map = {
@@ -60,6 +57,7 @@ feature_name_map = {
 # --- Custom Style ---
 pink = "#f08ebc"
 
+st.set_page_config(page_title="Customer Adopter Prediction", layout="wide")
 st.markdown(f"""
     <style>
     .main {{
@@ -138,8 +136,8 @@ if uploaded_file:
                 st.markdown("### 🔍 Top Features Influencing Adoption")
                 explainer = shap.Explainer(model, X_scaled)
                 shap_values = explainer(X_scaled)
+                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]
 
-                # Compute SHAP impact
                 shap_importance = shap_values.abs.mean(0).values
                 feature_names_original = X_scaled.columns
 
@@ -148,12 +146,10 @@ if uploaded_file:
                     "Impact": shap_importance
                 }).sort_values(by="Impact", ascending=False).head(5)
 
-                # Apply readable names
                 top_feature_df["Readable_Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
                 top5_llm_df = top_feature_df[["Readable_Feature", "Impact"]].rename(columns={"Readable_Feature": "Feature"})
 
                 fig = plt.figure(figsize=(6, 3.5))
-                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]  # Rename features in plot
                 shap.plots.beeswarm(shap_values, max_display=10, show=False)
                 st.pyplot(fig)
 
@@ -161,19 +157,16 @@ if uploaded_file:
             st.markdown("### 🧠 What Influences Adoption?")
             feature_text = top5_llm_df.to_string(index=False)
             llm_prompt = f"""
-            Given the following top features ranked by their impact on customer adoption:
+            For the following top features ranked by their impact on customer adoption:
             {feature_text}
 
-            For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
-            Provide only business-relevant insights.
+            Explain what user behavior each feature captures and how it might relate to adoption of a premium subscription. Keep it concise and business-focused.
             """
             llm_response = query_hf_mistral(llm_prompt)
-            st.code(llm_response)  # Debug display
-
             if llm_response and "LLM error" not in llm_response:
-                feature_explanations = llm_response.split("\n")
-                clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
-                feature_df = pd.DataFrame(clean_rows[:5], columns=["Feature", "How does it impact?"])
+                explanation_lines = [line for line in llm_response.split("\n") if ":" in line and len(line.split(":")) == 2]
+                clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in explanation_lines]
+                feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
                 st.table(feature_df)
             else:
                 st.warning("LLM explanation could not be generated. Please try again later.")
@@ -181,13 +174,11 @@ if uploaded_file:
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
             Based on these top features: {', '.join(top5_llm_df['Feature'].tolist())},
-            suggest 3 campaign ideas that marketing professionals can run to increase premium subscriptions. 
-            Make each suggestion concise, relevant, and tied to customer behavior.
+            suggest 3 concise and relevant marketing campaign ideas to increase premium subscriptions. Tie each idea to specific customer behavior.
             """
-
             campaign_response = query_hf_mistral(rec_prompt)
             if campaign_response and "LLM error" not in campaign_response:
-                lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and re.match(r"^[0-9]+\\.", line)]
                 for line in lines:
                     st.markdown(f"- {line}")
             else:
