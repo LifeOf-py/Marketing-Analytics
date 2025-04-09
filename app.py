@@ -188,11 +188,11 @@ if uploaded_file:
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
-                lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and not line.strip().startswith("Avg") and not line.strip().startswith("Suggest")]
                 formatted = []
                 for line in lines:
                     line = re.sub(r"^\d+\.\s*", "", line)
-                    line = re.sub(r'"([^"]+)"', r'**\1**', line)
+                    line = re.sub(r'"([^"]+?)"', r'**\1**', line)
                     formatted.append(f"- {line}")
                 st.markdown("\n\n".join(formatted))
             else:
