@@ -178,7 +178,7 @@ if uploaded_file:
             """
 
             explanation_response = query_hf_mistral(explanation_prompt)
-            parsed_table = parse_explanation_to_df(explanation_response)
+            st.markdown(explanation_response)
 
             if parsed_table is not None and not parsed_table.empty:
                 for i, row in parsed_table.iterrows():
