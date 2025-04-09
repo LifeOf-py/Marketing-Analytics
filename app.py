@@ -190,7 +190,7 @@ if uploaded_file:
                 st.markdown(campaign_response)
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
-                
+
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
 else:
