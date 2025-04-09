@@ -34,7 +34,7 @@ def query_hf_mistral(prompt, max_tokens=512):
     try:
         return response.json()[0]['generated_text']
     except:
-        return "LLM explanation could not be generated. Please try again later."
+        return None
 
 # --- Feature Name Mapping ---
 feature_name_map = {
@@ -110,43 +110,40 @@ if uploaded_file:
 
         with tabs[1]:
             st.subheader("✅ Campaign Summary & Insights")
-            col1, col2 = st.columns([1, 2])
+            col1, col2 = st.columns([1, 2], gap="large")
 
             with col1:
-                with st.container():
-                    st.markdown("### 📊 Campaign ROI Summary")
-                    cutoff = int(len(df_result) * top_k_percent / 100)
-                    top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
-                    n_targeted = len(top_customers)
-                    n_predicted_adopters = top_customers["Predicted_Adopter"].sum()
+                st.markdown("### 📊 Campaign ROI Summary")
+                cutoff = int(len(df_result) * top_k_percent / 100)
+                top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
+                n_targeted = len(top_customers)
+                n_predicted_adopters = top_customers["Predicted_Adopter"].sum()
 
-                    total_cost = n_targeted * cost_per_customer
-                    total_revenue = n_predicted_adopters * revenue_per_conversion
-                    roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
+                total_cost = n_targeted * cost_per_customer
+                total_revenue = n_predicted_adopters * revenue_per_conversion
+                roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
 
-                    st.metric("🎯 Targeted Customers", n_targeted)
-                    st.metric("📈 Expected Adopters", int(n_predicted_adopters))
-                    st.metric("💰 Estimated ROI", f"{roi:.2f}")
+                st.metric("🎯 Targeted Customers", n_targeted)
+                st.metric("📈 Expected Adopters", int(n_predicted_adopters))
+                st.metric("💰 Estimated ROI", f"{roi:.2f}")
 
             with col2:
-                with st.container():
-                    st.markdown("### 🔍 Top Features Influencing Adoption")
-                    explainer = shap.Explainer(model, X_scaled)
-                    shap_values = explainer(X_scaled)
-                    fig = plt.figure(figsize=(5, 3.5))
-                    shap.plots.beeswarm(shap_values, max_display=10, show=False)
-                    st.pyplot(fig)
+                st.markdown("### 🔍 Top Features Influencing Adoption")
+                explainer = shap.Explainer(model, X_scaled)
+                shap_values = explainer(X_scaled)
+                top_features = shap_values.abs.mean(0).values
+                feature_names = X_scaled.columns
+                top_feature_df = pd.DataFrame({"Feature": feature_names, "Impact": top_features})
+                top_feature_df = top_feature_df.sort_values(by="Impact", ascending=False).head(5)
+
+                # For display
+                top_feature_df["Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
+                fig = plt.figure(figsize=(6, 3.5))
+                shap.plots.beeswarm(shap_values, max_display=10, show=False)
+                st.pyplot(fig)
 
             st.divider()
-
             st.markdown("### 🧠 What Influences Adoption?")
-            top_features = shap_values.abs.mean(0).values
-            feature_names = X_scaled.columns
-            top_feature_df = pd.DataFrame({"Feature": feature_names, "Impact": top_features})
-            top_feature_df = top_feature_df.sort_values(by="Impact", ascending=False).head(5)
-
-            top_feature_df["Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
-
             feature_text = top_feature_df.to_string(index=False)
             llm_prompt = f"""
             Given the following top features ranked by their impact on customer adoption:
@@ -157,10 +154,13 @@ if uploaded_file:
             """
 
             llm_response = query_hf_mistral(llm_prompt)
-            feature_explanations = llm_response.split("\n")
-            clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
-            feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
-            st.table(feature_df)
+            if llm_response:
+                feature_explanations = llm_response.split("\n")
+                clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
+                feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
+                st.table(feature_df)
+            else:
+                st.warning("LLM explanation could not be generated. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
@@ -170,7 +170,12 @@ if uploaded_file:
             """
 
             campaign_response = query_hf_mistral(rec_prompt)
-            st.markdown(campaign_response)
+            if campaign_response:
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
+                for line in lines:
+                    st.markdown(f"- {line}")
+            else:
+                st.warning("LLM recommendation could not be generated. Please try again later.")
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
