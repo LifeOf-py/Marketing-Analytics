@@ -155,7 +155,7 @@ if uploaded_file:
 
             st.divider()
             st.markdown("### 🧠 What Influences Adoption?")
-            feature_text = top5_llm_df.to_string(index=False)
+            feature_text = top5_llm_df.to_string(index=False, header=False)
             llm_prompt = f"""
             For the following top features ranked by their impact on customer adoption:
             {feature_text}
