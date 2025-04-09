@@ -1,4 +1,4 @@
-# app.py
+""# app.py
 
 import streamlit as st
 import pandas as pd
@@ -10,6 +10,9 @@ from sklearn.metrics import roc_auc_score
 import os
 import requests
 
+# --- Page Config (must be first Streamlit command) ---
+st.set_page_config(page_title="Customer Adopter Prediction", layout="wide")
+
 # Load model and scaler
 bundle = joblib.load("marketing_classifier_bundle.pkl")
 model = bundle["model"]
@@ -17,8 +20,6 @@ scaler = bundle["scaler"]
 
 # --- Hugging Face Inference API Setup ---
 HF_API_TOKEN = st.secrets["HF_API_TOKEN"] if "HF_API_TOKEN" in st.secrets else os.getenv("HF_API_TOKEN")
-if not HF_API_TOKEN:
-    st.warning("❌ Hugging Face API token not found. Add it to `.streamlit/secrets.toml` or your environment.")
 headers = {
     "Authorization": f"Bearer {HF_API_TOKEN}",
     "Content-Type": "application/json"
@@ -34,11 +35,7 @@ def query_hf_mistral(prompt, max_tokens=512):
     }
     response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
     try:
-        json_output = response.json()
-        if isinstance(json_output, list) and "generated_text" in json_output[0]:
-            return json_output[0]["generated_text"]
-        else:
-            return f"Unexpected LLM format: {json_output}"
+        return response.json()[0]['generated_text']
     except Exception as e:
         return f"LLM error: {str(e)}"
 
@@ -58,7 +55,6 @@ feature_name_map = {
 # --- Custom Style ---
 pink = "#f08ebc"
 
-st.set_page_config(page_title="Customer Adopter Prediction", layout="wide")
 st.markdown(f"""
     <style>
     .main {{
@@ -138,8 +134,7 @@ if uploaded_file:
                 explainer = shap.Explainer(model, X_scaled)
                 shap_values = explainer(X_scaled)
 
-                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]
-
+                # Compute SHAP impact
                 shap_importance = shap_values.abs.mean(0).values
                 feature_names_original = X_scaled.columns
 
@@ -148,10 +143,12 @@ if uploaded_file:
                     "Impact": shap_importance
                 }).sort_values(by="Impact", ascending=False).head(5)
 
+                # Apply readable names
                 top_feature_df["Readable_Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
                 top5_llm_df = top_feature_df[["Readable_Feature", "Impact"]].rename(columns={"Readable_Feature": "Feature"})
 
                 fig = plt.figure(figsize=(6, 3.5))
+                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]  # Rename features in plot
                 shap.plots.beeswarm(shap_values, max_display=10, show=False)
                 st.pyplot(fig)
 
@@ -165,14 +162,13 @@ if uploaded_file:
             For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
             Provide only business-relevant insights.
             """
-
             llm_response = query_hf_mistral(llm_prompt)
-            st.code(llm_response, language="markdown")  # Debugging only
+            st.code(llm_response)  # Debug display
 
-            if llm_response and "LLM error" not in llm_response and "Unexpected" not in llm_response:
+            if llm_response and "LLM error" not in llm_response:
                 feature_explanations = llm_response.split("\n")
                 clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
-                feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
+                feature_df = pd.DataFrame(clean_rows[:5], columns=["Feature", "How does it impact?"])
                 st.table(feature_df)
             else:
                 st.warning("LLM explanation could not be generated. Please try again later.")
@@ -185,9 +181,7 @@ if uploaded_file:
             """
 
             campaign_response = query_hf_mistral(rec_prompt)
-            st.code(campaign_response, language="markdown")  # Debugging only
-
-            if campaign_response and "LLM error" not in campaign_response and "Unexpected" not in campaign_response:
+            if campaign_response and "LLM error" not in campaign_response:
                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
                 for line in lines:
                     st.markdown(f"- {line}")
