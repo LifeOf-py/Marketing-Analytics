@@ -183,9 +183,8 @@ if uploaded_file:
             readable_features = ", ".join(top5_llm_df["Readable_Feature"].tolist())
             
             rec_prompt = f"""
-            Suggest 3 concise, distinct and relevant marketing campaign ideas based on these features: {readable_features}.
-            Each campaign name should be unique, focused on a different user behavior, and described in one paragraph.
-            Wrap the campaign title in double quotes.
+            Suggest 3 concise and relevant marketing campaign ideas based on these features: {readable_features}.
+            Each idea should be unique. Return each idea as a paragraph. Wrap the campaign title in double quotes.
             """
             
             campaign_response = query_hf_mistral(rec_prompt)
