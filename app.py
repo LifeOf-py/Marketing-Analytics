@@ -158,47 +158,21 @@ if uploaded_file:
 
             feature_text = "\n".join([f"{row['Feature']} ({row['Impact']:.3f})" for _, row in top5_llm_df.iterrows()])
             llm_prompt = f"""
-            Given the following top features ranked by their impact on customer adoption:
-
+            What are the top insights for marketing strategy given these features:
             {feature_text}
-
-            Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription.
-
-            Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
             """
 
             llm_response = query_hf_mistral(llm_prompt)
-            if llm_response and "LLM error" not in llm_response:
-                lines = llm_response.strip().split("\n")
-                parsed_rows = []
-                for line in lines:
-                    line = line.strip()
-                    if not re.match(r"^[A-Za-z].*[:\-]\s+", line):
-                        continue
-                    match = re.match(r"^(.*?)[\:\-]\s+(.*)", line)
-                    if match:
-                        parsed_rows.append((match.group(1).strip(), match.group(2).strip()))
-
-                if parsed_rows:
-                    feature_df = pd.DataFrame(parsed_rows, columns=["Feature", "How does it impact?"])
-                    st.table(feature_df)
-                else:
-                    st.warning("LLM explanation could not be parsed. Please try again later.")
-            else:
-                st.warning("LLM explanation could not be generated. Please try again later.")
+            st.code(llm_response)
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Based on these top features: {', '.join(top5_llm_df['Feature'].tolist())},
-            suggest 3 concise and relevant marketing campaign ideas to increase premium subscriptions. Tie each idea to specific customer behavior.
+            Given these influential features for premium subscription: {', '.join(top5_llm_df['Feature'].tolist())},
+            what campaign strategies or targeting ideas would you suggest?
             """
+
             campaign_response = query_hf_mistral(rec_prompt)
-            if campaign_response and "LLM error" not in campaign_response:
-                lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and re.match(r"^[0-9]+\.\s", line)]
-                for line in lines:
-                    st.markdown(f"- {line}")
-            else:
-                st.warning("LLM recommendation could not be generated. Please try again later.")
+            st.code(campaign_response)
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
