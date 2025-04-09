@@ -188,15 +188,23 @@ if uploaded_file:
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
-                content_start = campaign_response.find("\n", campaign_response.find("\n") + 1)
-                cleaned_response = campaign_response[content_start:].strip()
-                lines = [line.strip() for line in cleaned_response.split("\n") if line.strip() and not line.strip().startswith("Avg") and not line.strip().startswith("Suggest")]
+                ideas = [line.strip() for line in campaign_response.split("\n") if line.strip() and not line.lower().startswith("suggest") and not line.lower().startswith("return") and not re.match(r"^avg age|songs listened|loved tracks|user age|friends who subscribed", line.lower())]
                 formatted = []
-                for line in lines:
-                    line = re.sub(r"^\d+\.\s*", "", line)
-                    line = re.sub(r'"([^"]+?)"', r'**\1**', line)
-                    formatted.append(f"- {line}")
-                st.markdown("\n\n".join(formatted))
+                current_title = None
+                for line in ideas:
+                    if line.lower().startswith("campaign title") or re.match(r'^"[^"]+"', line):
+                        if current_title:
+                            formatted.append(f"- {current_title}")
+                        title_match = re.search(r'"([^"]+)"', line)
+                        if title_match:
+                            current_title = f"**{title_match.group(1)}**"
+                    else:
+                        if current_title:
+                            formatted.append(f"  -- {line}")
+                            current_title = None
+                if current_title:
+                    formatted.append(f"- {current_title}")
+                st.markdown("\n".join(formatted))
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
 
@@ -204,4 +212,3 @@ if uploaded_file:
         st.error(f"There was a problem processing your file: {e}")
 else:
     st.info("📤 Please upload a CSV file to begin analysis.")
-    
