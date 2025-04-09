@@ -186,19 +186,35 @@ if uploaded_file:
             Return each idea as a paragraph. Wrap the campaign title in double quotes.
             """
             campaign_response = query_hf_mistral(rec_prompt)
-
+            
             if campaign_response and "LLM error" not in campaign_response:
-                content_start = campaign_response.find("\n", campaign_response.find("\n") + 1)
-                cleaned_response = campaign_response[content_start:].strip()
-                lines = [line.strip() for line in cleaned_response.split("\n") if line.strip() and not line.strip().startswith("Avg") and not line.strip().startswith("Suggest")]
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip() 
+                         and not line.lower().startswith("suggest")
+                         and not line.lower().startswith("return")
+                         and not re.match(r"^avg age|songs listened|loved tracks|user age|friends who subscribed", line.lower())]
+            
                 formatted = []
+                current_title = None
+            
                 for line in lines:
-                    line = re.sub(r"^\d+\.\s*", "", line)
-                    line = re.sub(r'"([^"]+?)"', r'**\1**', line)
-                    formatted.append(f"- {line}")
-                st.markdown("\n\n".join(formatted))
+                    # Check if line is a campaign title
+                    title_match = re.search(r'"([^"]+)"', line)
+                    if title_match:
+                        if current_title:
+                            formatted.append(current_title)
+                        current_title = f"- <b>{title_match.group(1)}</b>"
+                    else:
+                        if current_title:
+                            formatted.append(f"&nbsp;&nbsp;&nbsp;&nbsp;• {line}")
+                            current_title = None
+            
+                if current_title:
+                    formatted.append(current_title)
+            
+                st.markdown("<br>".join(formatted), unsafe_allow_html=True)
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
+
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
