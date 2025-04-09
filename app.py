@@ -180,18 +180,23 @@ if uploaded_file:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
+            readable_features = ", ".join(top5_llm_df["Readable_Feature"].tolist())
             rec_prompt = f"""
-             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
-             Return each idea as a paragraph. Wrap the campaign title in double quotes.
-             """
+            Suggest 3 concise and relevant marketing campaign ideas based on these features: {readable_features}.
+            Return each idea as a paragraph. Wrap the campaign title in double quotes.
+            """
             campaign_response = query_hf_mistral(rec_prompt)
- 
+
             if campaign_response and "LLM error" not in campaign_response:
-                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip().startswith(tuple("123456789"))]
-                 cleaned = [re.sub(r'^\d+\.\s+"([^"]+)":', r'**\1**:', line) for line in lines]
-                 st.markdown("\n\n".join(cleaned))
+                lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
+                formatted = []
+                for line in lines:
+                    line = re.sub(r"^\d+\.\s*", "", line)
+                    line = re.sub(r'"([^"]+)"', r'**\1**', line)
+                    formatted.append(f"- {line}")
+                st.markdown("\n\n".join(formatted))
             else:
-                 st.warning("LLM recommendation could not be generated. Please try again later.")
+                st.warning("LLM recommendation could not be generated. Please try again later.")
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
