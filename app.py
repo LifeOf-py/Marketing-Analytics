@@ -35,17 +35,17 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("📈 Premium Adopter Prediction Dashboard")
-st.markdown("Upload customer data and simulate campaign results.")
+st.title("📈 Premium Adoption Prediction Dashboard")
+st.markdown("Upload new customer leads and simulate campaign ROI.")
 
 # Sidebar Inputs
 st.sidebar.header("🎯 Campaign ROI Simulator")
 cost_per_customer = st.sidebar.number_input("Marketing Cost per Customer ($)", min_value=0.0, value=1.0, step=0.1)
-revenue_per_conversion = st.sidebar.number_input("Revenue per Adopter ($)", min_value=0.0, value=10.0, step=0.5)
-top_k_percent = st.sidebar.slider("Top % Customers to Target", min_value=5, max_value=50, value=20, step=5)
+revenue_per_conversion = st.sidebar.number_input("Revenue per Adoption ($)", min_value=0.0, value=10.0, step=0.5)
+top_k_percent = st.sidebar.slider("Top % Customers to Target", min_value=5, max_value=100, value=20, step=10)
 
 # File Upload
-uploaded_file = st.file_uploader("Upload a CSV file with customer features (excluding 'adopter')", type=["csv"])
+uploaded_file = st.file_uploader("Upload CSV file with new customer leads", type=["csv"])
 
 if uploaded_file:
     try:
@@ -61,7 +61,7 @@ if uploaded_file:
         tabs = st.tabs(["📊 Results", "📈 ROI & Metrics", "🔍 SHAP & Lift", "💡 Campaign Suggestions"])
 
         with tabs[0]:
-            st.subheader("Prediction Results")
+            st.subheader("Prediction Results (Showing Top 20 Customers)")
             st.dataframe(df_result.sort_values("Predicted_Probability", ascending=False).head(20), use_container_width=True, height=250)
             csv_download = df_result.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Predictions", data=csv_download, file_name="predicted_customers.csv", mime='text/csv')
@@ -86,30 +86,36 @@ if uploaded_file:
             st.subheader("Top Features Influencing Adoption")
             explainer = shap.Explainer(model, X_scaled)
             shap_values = explainer(X_scaled)
-
-            fig_beeswarm = shap.plots.beeswarm(shap_values, max_display=10, show=False)
-            plt.gcf().set_size_inches(5, 3.5)
-            st.pyplot(bbox_inches="tight", dpi=200, clear_figure=True)
-
-            fig_bar = shap.plots.bar(shap_values, max_display=10, show=False)
-            plt.gcf().set_size_inches(5, 2.5)
-            st.pyplot(bbox_inches="tight", dpi=200, clear_figure=True)
-
+        
+            col1, col2 = st.columns(2)
+        
+            with col1:
+                st.markdown("**SHAP Beeswarm**")
+                fig1 = plt.figure(figsize=(5, 3))
+                shap.plots.beeswarm(shap_values, max_display=10, show=False)
+                st.pyplot(fig1)
+        
+            with col2:
+                st.markdown("**SHAP Summary Bar**")
+                fig2 = plt.figure(figsize=(5, 2.5))
+                shap.plots.bar(shap_values, max_display=10, show=False)
+                st.pyplot(fig2)
+        
             st.subheader("Lift Curve")
             lift_df = pd.DataFrame({"prob": prob})
             lift_df["actual"] = pred
             lift_df = lift_df.sort_values(by="prob", ascending=False).reset_index(drop=True)
             lift_df["x"] = (lift_df.index + 1) / len(lift_df)
             lift_df["y"] = (lift_df["actual"].cumsum() / lift_df["actual"].sum()) / lift_df["x"]
-
-            fig, ax = plt.subplots(figsize=(5, 3))
+        
+            fig_lift, ax = plt.subplots(figsize=(5, 3))
             ax.plot(lift_df["x"], lift_df["y"], color=pink, lw=2, label="Model")
             ax.axhline(1, color="grey", linestyle="--", label="Baseline")
             ax.set_xlabel("Fraction of Population")
             ax.set_ylabel("Lift Ratio")
             ax.set_title("Lift Curve")
             ax.legend()
-            st.pyplot(fig)
+            st.pyplot(fig_lift)
 
         with tabs[3]:
             st.subheader("LLM Campaign Suggestions 🧪")
