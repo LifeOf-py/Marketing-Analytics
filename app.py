@@ -167,4 +167,41 @@ if uploaded_file:
 
             explanation_prompt = "\n".join([
                 "Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription.",
-                *[f"- {row['Readable_Feature']}" for _, row in top5_llm_df
+                *[f"- {row['Readable_Feature']}" for _, row in top5_llm_df.iterrows()]
+            ])
+
+            explanation_response = query_hf_mistral(explanation_prompt)
+            parsed_table = parse_explanation_to_df(explanation_response)
+
+            if parsed_table is not None and not parsed_table.empty:
+                ordered = pd.merge(top5_llm_df[["Readable_Feature"]], parsed_table, left_on="Readable_Feature", right_on="Feature", how="left")
+                st.table(ordered[["Feature", "How does it impact?"]])
+            else:
+                st.warning("LLM explanation could not be parsed. Please try again later.")
+
+            st.markdown("### 🎯 Campaign Recommendations")
+            readable_features = ", ".join(top5_llm_df["Readable_Feature"].tolist())
+            rec_prompt = f"""
+            Suggest 3 concise and relevant marketing campaign ideas based on these features: {readable_features}.
+            Return each idea as a paragraph. Wrap the campaign title in double quotes.
+            """
+            campaign_response = query_hf_mistral(rec_prompt)
+
+            if campaign_response and "LLM error" not in campaign_response:
+                content_start = campaign_response.find("\n", campaign_response.find("\n") + 1)
+                cleaned_response = campaign_response[content_start:].strip()
+                lines = [line.strip() for line in cleaned_response.split("\n") if line.strip() and not line.strip().startswith("Avg") and not line.strip().startswith("Suggest")]
+                formatted = []
+                for line in lines:
+                    line = re.sub(r"^\d+\.\s*", "", line)
+                    line = re.sub(r'"([^"]+?)"', r'**\1**', line)
+                    formatted.append(f"- {line}")
+                st.markdown("\n\n".join(formatted))
+            else:
+                st.warning("LLM recommendation could not be generated. Please try again later.")
+
+    except Exception as e:
+        st.error(f"There was a problem processing your file: {e}")
+else:
+    st.info("📤 Please upload a CSV file to begin analysis.")
+    
