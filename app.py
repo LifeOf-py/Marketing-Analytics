@@ -172,7 +172,10 @@ if uploaded_file:
                 lines = llm_response.strip().split("\n")
                 parsed_rows = []
                 for line in lines:
-                    match = re.match(r"^(.*?)\s*[:\-]\s*(.*)", line)
+                    line = line.strip()
+                    if not re.match(r"^[A-Za-z].*[:\-]\s+", line):
+                        continue
+                    match = re.match(r"^(.*?)[\:\-]\s+(.*)", line)
                     if match:
                         parsed_rows.append((match.group(1).strip(), match.group(2).strip()))
 
