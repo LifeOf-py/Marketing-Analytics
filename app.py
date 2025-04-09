@@ -148,7 +148,7 @@ if uploaded_file:
                 }).sort_values(by="Impact", ascending=False).head(5)
 
                 top_feature_df["Readable_Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
-                top5_llm_df = top_feature_df[["Readable_Feature", "Impact"]].rename(columns={"Readable_Feature": "Feature"})
+                top5_llm_df = top_feature_df[["Feature", "Readable_Feature", "Impact"]]
 
                 fig = plt.figure(figsize=(6, 3.5))
                 shap.plots.beeswarm(shap_values, max_display=10, show=False)
@@ -162,25 +162,27 @@ if uploaded_file:
                 for line in raw_text.splitlines():
                     match = re.match(r"^\d+\.\s+(.*?):\s+(.*)", line.strip())
                     if match:
-                        rows.append((match.group(1), match.group(2)))
+                        rows.append((match.group(1).strip(), match.group(2).strip()))
                 return pd.DataFrame(rows, columns=["Feature", "How does it impact?"])
 
             explanation_prompt = "\n".join([
                 "For each of the following features, explain what user behavior it captures and how it might relate to premium subscription:",
-                *[f"{i+1}. {row['Feature']}" for i, row in top5_llm_df.iterrows()]
+                *[f"{i+1}. {row['Readable_Feature']}" for i, row in top5_llm_df.iterrows()]
             ])
 
             explanation_response = query_hf_mistral(explanation_prompt)
             parsed_table = parse_explanation_to_df(explanation_response)
 
             if parsed_table is not None and not parsed_table.empty:
-                st.table(parsed_table.head(5))
+                # Ensure ordering matches SHAP ordering
+                ordered = pd.merge(top5_llm_df[["Readable_Feature"]], parsed_table, left_on="Readable_Feature", right_on="Feature", how="left")
+                st.table(ordered[["Feature", "How does it impact?"]])
             else:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Feature'].tolist())}.
+            Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
