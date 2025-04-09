@@ -33,8 +33,8 @@ def query_hf_mistral(prompt, max_tokens=512):
     response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
     try:
         return response.json()[0]['generated_text']
-    except:
-        return None
+    except Exception as e:
+        return f"LLM error: {str(e)}"
 
 # --- Feature Name Mapping ---
 feature_name_map = {
@@ -131,20 +131,30 @@ if uploaded_file:
                 st.markdown("### 🔍 Top Features Influencing Adoption")
                 explainer = shap.Explainer(model, X_scaled)
                 shap_values = explainer(X_scaled)
-                top_features = shap_values.abs.mean(0).values
-                feature_names = X_scaled.columns
-                top_feature_df = pd.DataFrame({"Feature": feature_names, "Impact": top_features})
-                top_feature_df = top_feature_df.sort_values(by="Impact", ascending=False).head(5)
 
-                # For display
-                top_feature_df["Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
+                # Rename SHAP feature labels
+                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]
+
+                # Compute SHAP impact
+                shap_importance = shap_values.abs.mean(0).values
+                feature_names_original = X_scaled.columns
+
+                top_feature_df = pd.DataFrame({
+                    "Feature": feature_names_original,
+                    "Impact": shap_importance
+                }).sort_values(by="Impact", ascending=False).head(5)
+
+                # Apply readable names
+                top_feature_df["Readable_Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
+                top5_llm_df = top_feature_df[["Readable_Feature", "Impact"]].rename(columns={"Readable_Feature": "Feature"})
+
                 fig = plt.figure(figsize=(6, 3.5))
                 shap.plots.beeswarm(shap_values, max_display=10, show=False)
                 st.pyplot(fig)
 
             st.divider()
             st.markdown("### 🧠 What Influences Adoption?")
-            feature_text = top_feature_df.to_string(index=False)
+            feature_text = top5_llm_df.to_string(index=False)
             llm_prompt = f"""
             Given the following top features ranked by their impact on customer adoption:
             {feature_text}
@@ -154,7 +164,7 @@ if uploaded_file:
             """
 
             llm_response = query_hf_mistral(llm_prompt)
-            if llm_response:
+            if llm_response and "LLM error" not in llm_response:
                 feature_explanations = llm_response.split("\n")
                 clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
                 feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
@@ -164,13 +174,13 @@ if uploaded_file:
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-            Based on these top features: {', '.join(top_feature_df['Feature'].tolist())},
+            Based on these top features: {', '.join(top5_llm_df['Feature'].tolist())},
             suggest 3 campaign ideas that marketing professionals can run to increase premium subscriptions. 
             Make each suggestion concise, relevant, and tied to customer behavior.
             """
 
             campaign_response = query_hf_mistral(rec_prompt)
-            if campaign_response:
+            if campaign_response and "LLM error" not in campaign_response:
                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
                 for line in lines:
                     st.markdown(f"- {line}")
