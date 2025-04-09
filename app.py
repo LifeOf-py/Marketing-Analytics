@@ -160,14 +160,14 @@ if uploaded_file:
             def parse_explanation_to_df(raw_text):
                 rows = []
                 for line in raw_text.splitlines():
-                    match = re.match(r"^\d+\.\s+(.*?):\s+(.*)", line.strip())
+                    match = re.match(r"^[-\*]?\s*\**(.*?)\**\s*:\s*(.*)", line.strip())
                     if match:
                         rows.append((match.group(1).strip(), match.group(2).strip()))
                 return pd.DataFrame(rows, columns=["Feature", "How does it impact?"])
 
             explanation_prompt = "\n".join([
-                "For each of the following features, explain what user behavior it captures and how it might relate to premium subscription:",
-                *[f"{i+1}. {row['Readable_Feature']}" for i, row in top5_llm_df.iterrows()]
+                "Explain what user behavior each of the following features captures and how it might relate to adoption of a premium subscription.",
+                *[f"- {row['Readable_Feature']}" for _, row in top5_llm_df.iterrows()]
             ])
 
             explanation_response = query_hf_mistral(explanation_prompt)
@@ -182,12 +182,12 @@ if uploaded_file:
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
-            Return each idea as a paragraph. Wrap the campaign title in double quotes.
+            Return each idea as a paragraph. Wrap the campaign title in double quotes. Do not number the ideas.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
-                pattern = r'"(.*?)":\s*(.*?)(?=\n\s*\d+\.|\Z)'
+                pattern = r'"(.*?)":\s*(.*?)(?=\n\s*"|\Z)'
                 matches = re.findall(pattern, campaign_response, flags=re.DOTALL)
                 if matches:
                     for title, desc in matches:
