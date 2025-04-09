@@ -17,6 +17,8 @@ scaler = bundle["scaler"]
 
 # --- Hugging Face Inference API Setup ---
 HF_API_TOKEN = st.secrets["HF_API_TOKEN"] if "HF_API_TOKEN" in st.secrets else os.getenv("HF_API_TOKEN")
+if not HF_API_TOKEN:
+    st.warning("❌ Hugging Face API token not found. Add it to `.streamlit/secrets.toml` or your environment.")
 headers = {
     "Authorization": f"Bearer {HF_API_TOKEN}",
     "Content-Type": "application/json"
@@ -30,13 +32,13 @@ def query_hf_mistral(prompt, max_tokens=512):
         "inputs": prompt,
         "parameters": {"max_new_tokens": max_tokens}
     }
+    response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
     try:
-        response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=30)
-        output = response.json()
-        if isinstance(output, list) and "generated_text" in output[0]:
-            return output[0]["generated_text"]
+        json_output = response.json()
+        if isinstance(json_output, list) and "generated_text" in json_output[0]:
+            return json_output[0]["generated_text"]
         else:
-            return f"LLM error: Unexpected format\n{output}"
+            return f"Unexpected LLM format: {json_output}"
     except Exception as e:
         return f"LLM error: {str(e)}"
 
@@ -136,9 +138,7 @@ if uploaded_file:
                 explainer = shap.Explainer(model, X_scaled)
                 shap_values = explainer(X_scaled)
 
-                X_shap = X_scaled.copy()
-                X_shap.columns = [feature_name_map.get(col, col) for col in X_shap.columns]
-                shap_values = explainer(X_shap)
+                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]
 
                 shap_importance = shap_values.abs.mean(0).values
                 feature_names_original = X_scaled.columns
@@ -167,7 +167,9 @@ if uploaded_file:
             """
 
             llm_response = query_hf_mistral(llm_prompt)
-            if llm_response and "LLM error" not in llm_response:
+            st.code(llm_response, language="markdown")  # Debugging only
+
+            if llm_response and "LLM error" not in llm_response and "Unexpected" not in llm_response:
                 feature_explanations = llm_response.split("\n")
                 clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
                 feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
@@ -183,7 +185,9 @@ if uploaded_file:
             """
 
             campaign_response = query_hf_mistral(rec_prompt)
-            if campaign_response and "LLM error" not in campaign_response:
+            st.code(campaign_response, language="markdown")  # Debugging only
+
+            if campaign_response and "LLM error" not in campaign_response and "Unexpected" not in campaign_response:
                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip()]
                 for line in lines:
                     st.markdown(f"- {line}")
