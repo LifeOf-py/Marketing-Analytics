@@ -156,30 +156,32 @@ if uploaded_file:
             st.divider()
             st.markdown("### 🧠 What Influences Adoption?")
 
-            feature_text = "\n".join([f"{row['Feature']} ({row['Impact']:.3f})" for _, row in top5_llm_df.iterrows()])
-            llm_prompt = f"""
-            What are the top insights for marketing strategy given these features:
-            {feature_text}
-
-            Based on the features provided, here are the top insights for marketing strategy:
-            """
-            llm_response = query_hf_mistral(llm_prompt)
-
-            if llm_response and "LLM error" not in llm_response:
-                pattern = re.compile(r"\d+\.\s*(.*?)\s*\((.*?)\)\:\s*(.*)")
-                parsed_rows = []
-                for line in llm_response.split("\n"):
-                    match = pattern.match(line.strip())
+            def parse_explanation_to_df(raw_text):
+                lines = raw_text.splitlines()
+                table = []
+                pattern = r"^\s*\d+\.\s*(.*?)\s*\([0-9.]+\)\s*:\s*(.*)$"
+                for line in lines:
+                    match = re.match(pattern, line)
                     if match:
-                        feat, impact, desc = match.groups()
-                        parsed_rows.append((feat.strip(), desc.strip()))
+                        feature, explanation = match.groups()
+                        table.append((feature.strip(), explanation.strip()))
+                return pd.DataFrame(table, columns=["Feature", "How does it impact?"]) if table else None
 
-                if parsed_rows:
-                    st.table(pd.DataFrame(parsed_rows, columns=["Feature", "How does it impact?"]))
-                else:
-                    st.warning("LLM explanation could not be parsed. Please try again later.")
+            explanation_prompt = f"""
+            Given the following top features ranked by their impact on customer adoption:
+            {top5_llm_df.to_string(index=False)}
+
+            For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
+            Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
+            """
+
+            explanation_response = query_hf_mistral(explanation_prompt)
+            parsed_table = parse_explanation_to_df(explanation_response)
+
+            if parsed_table is not None and not parsed_table.empty:
+                st.table(parsed_table)
             else:
-                st.warning("LLM explanation could not be generated. Please try again later.")
+                st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
