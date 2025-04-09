@@ -174,7 +174,6 @@ if uploaded_file:
             parsed_table = parse_explanation_to_df(explanation_response)
 
             if parsed_table is not None and not parsed_table.empty:
-                # Ensure ordering matches SHAP ordering
                 ordered = pd.merge(top5_llm_df[["Readable_Feature"]], parsed_table, left_on="Readable_Feature", right_on="Feature", how="left")
                 st.table(ordered[["Feature", "How does it impact?"]])
             else:
@@ -183,12 +182,14 @@ if uploaded_file:
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
+            Return each idea starting with a number and wrap the campaign title in double quotes.
             """
             campaign_response = query_hf_mistral(rec_prompt)
 
             if campaign_response and "LLM error" not in campaign_response:
                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip().startswith(tuple("123456789"))]
-                st.markdown("\n".join([f"- {line}" for line in lines]))
+                cleaned = [re.sub(r'^\d+\.\s+"([^"]+)":', r'**\1**:', line) for line in lines]
+                st.markdown("\n\n".join(cleaned))
             else:
                 st.warning("LLM recommendation could not be generated. Please try again later.")
 
