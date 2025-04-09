@@ -31,7 +31,23 @@ def query_hf_mistral(prompt, max_tokens=512):
         "parameters": {"max_new_tokens": max_tokens}
     }
     response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
-    return response.json()[0]['generated_text']
+    try:
+        return response.json()[0]['generated_text']
+    except:
+        return "LLM explanation could not be generated. Please try again later."
+
+# --- Feature Name Mapping ---
+feature_name_map = {
+    "avg_friend_age": "Avg Age of Friends",
+    "songsListened": "Songs Listened",
+    "lovedTracks": "Loved Tracks",
+    "age": "User Age",
+    "subscriber_friend_cnt": "Friends Who Subscribed",
+    "delta_songsListened": "Recent Listening Spike",
+    "posts": "User Posts",
+    "shouts": "Shouts Made",
+    "male": "Is Male User"
+}
 
 # --- Custom Style ---
 pink = "#f08ebc"
@@ -52,10 +68,11 @@ st.markdown(f"""
         padding-bottom: 1rem;
     }}
     .metric-box {{
-        border: 1px solid #ccc;
-        border-radius: 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
         padding: 1rem;
-        background-color: #f9f9f9;
+        background-color: #f8f8f8;
+        margin-bottom: 1rem;
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -92,32 +109,33 @@ if uploaded_file:
             st.download_button("📥 Download Predictions", data=csv_download, file_name="predicted_customers.csv", mime='text/csv')
 
         with tabs[1]:
-            # ROI Summary and SHAP layout in 2 columns
-            st.subheader("💹 Campaign Summary & Insights")
-            col1, col2 = st.columns([1.2, 1.8])
+            st.subheader("✅ Campaign Summary & Insights")
+            col1, col2 = st.columns([1, 2])
 
             with col1:
-                st.markdown("#### 📊 Campaign ROI Summary")
-                cutoff = int(len(df_result) * top_k_percent / 100)
-                top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
-                n_targeted = len(top_customers)
-                n_predicted_adopters = top_customers["Predicted_Adopter"].sum()
+                with st.container():
+                    st.markdown("### 📊 Campaign ROI Summary")
+                    cutoff = int(len(df_result) * top_k_percent / 100)
+                    top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
+                    n_targeted = len(top_customers)
+                    n_predicted_adopters = top_customers["Predicted_Adopter"].sum()
 
-                total_cost = n_targeted * cost_per_customer
-                total_revenue = n_predicted_adopters * revenue_per_conversion
-                roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
+                    total_cost = n_targeted * cost_per_customer
+                    total_revenue = n_predicted_adopters * revenue_per_conversion
+                    roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
 
-                st.metric("🎯 Targeted Customers", n_targeted)
-                st.metric("📈 Expected Adopters", int(n_predicted_adopters))
-                st.metric("💰 Estimated ROI", f"{roi:.2f}")
+                    st.metric("🎯 Targeted Customers", n_targeted)
+                    st.metric("📈 Expected Adopters", int(n_predicted_adopters))
+                    st.metric("💰 Estimated ROI", f"{roi:.2f}")
 
             with col2:
-                st.markdown("#### 🔍 Top Features Influencing Adoption")
-                explainer = shap.Explainer(model, X_scaled)
-                shap_values = explainer(X_scaled)
-                fig = plt.figure(figsize=(5, 3.5))
-                shap.plots.beeswarm(shap_values, max_display=10, show=False)
-                st.pyplot(fig)
+                with st.container():
+                    st.markdown("### 🔍 Top Features Influencing Adoption")
+                    explainer = shap.Explainer(model, X_scaled)
+                    shap_values = explainer(X_scaled)
+                    fig = plt.figure(figsize=(5, 3.5))
+                    shap.plots.beeswarm(shap_values, max_display=10, show=False)
+                    st.pyplot(fig)
 
             st.divider()
 
@@ -126,6 +144,8 @@ if uploaded_file:
             feature_names = X_scaled.columns
             top_feature_df = pd.DataFrame({"Feature": feature_names, "Impact": top_features})
             top_feature_df = top_feature_df.sort_values(by="Impact", ascending=False).head(5)
+
+            top_feature_df["Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
 
             feature_text = top_feature_df.to_string(index=False)
             llm_prompt = f"""
@@ -138,7 +158,7 @@ if uploaded_file:
 
             llm_response = query_hf_mistral(llm_prompt)
             feature_explanations = llm_response.split("\n")
-            clean_rows = [(line.split(":")[0], line.split(":")[1]) for line in feature_explanations if ":" in line]
+            clean_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in feature_explanations if ":" in line]
             feature_df = pd.DataFrame(clean_rows, columns=["Feature", "How does it impact?"])
             st.table(feature_df)
 
