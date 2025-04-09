@@ -30,9 +30,13 @@ def query_hf_mistral(prompt, max_tokens=512):
         "inputs": prompt,
         "parameters": {"max_new_tokens": max_tokens}
     }
-    response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
     try:
-        return response.json()[0]['generated_text']
+        response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=30)
+        output = response.json()
+        if isinstance(output, list) and "generated_text" in output[0]:
+            return output[0]["generated_text"]
+        else:
+            return f"LLM error: Unexpected format\n{output}"
     except Exception as e:
         return f"LLM error: {str(e)}"
 
@@ -132,10 +136,10 @@ if uploaded_file:
                 explainer = shap.Explainer(model, X_scaled)
                 shap_values = explainer(X_scaled)
 
-                # Rename SHAP feature labels
-                shap_values.feature_names = [feature_name_map.get(name, name) for name in X_scaled.columns]
+                X_shap = X_scaled.copy()
+                X_shap.columns = [feature_name_map.get(col, col) for col in X_shap.columns]
+                shap_values = explainer(X_shap)
 
-                # Compute SHAP impact
                 shap_importance = shap_values.abs.mean(0).values
                 feature_names_original = X_scaled.columns
 
@@ -144,7 +148,6 @@ if uploaded_file:
                     "Impact": shap_importance
                 }).sort_values(by="Impact", ascending=False).head(5)
 
-                # Apply readable names
                 top_feature_df["Readable_Feature"] = top_feature_df["Feature"].apply(lambda x: feature_name_map.get(x, x))
                 top5_llm_df = top_feature_df[["Readable_Feature", "Impact"]].rename(columns={"Readable_Feature": "Feature"})
 
