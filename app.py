@@ -35,9 +35,14 @@ def query_hf_mistral(prompt, max_tokens=512):
     }
     response = requests.post(HF_MODEL_URL, headers=headers, json=payload)
     try:
-        return response.json()[0]['generated_text']
+        data = response.json()
+        if isinstance(data, list) and "generated_text" in data[0]:
+            return data[0]["generated_text"]
+        else:
+            return f"LLM error: unexpected response: {data}"
     except Exception as e:
         return f"LLM error: {str(e)}"
+
 
 # --- Feature Name Mapping ---
 feature_name_map = {
