@@ -35,8 +35,11 @@ def query_hf_mistral(prompt, max_tokens=512):
         result = response.json()
         if isinstance(result, list) and 'generated_text' in result[0]:
             full_text = result[0]['generated_text']
-            generated_only = full_text.replace(prompt.strip(), "").strip()
-            return generated_only
+            # Try to strip off prompt or extract from the first numbered explanation
+            explanation_start = re.split(r"\n?\s*1\.\s*", full_text, maxsplit=1)
+            if len(explanation_start) == 2:
+                return "1. " + explanation_start[1].strip()
+            return full_text.strip()
         elif isinstance(result, dict) and 'error' in result:
             return f"LLM error: unexpected response: {result}"
         return f"LLM error: unrecognized output format"
@@ -178,7 +181,12 @@ if uploaded_file:
             """
 
             explanation_response = query_hf_mistral(explanation_prompt)
-            st.markdown(explanation_response)
+            parsed_table = parse_explanation_to_df(explanation_response)
+
+            if parsed_table is not None and not parsed_table.empty:
+                st.table(parsed_table)
+            else:
+                st.warning("LLM explanation could not be parsed. Please try again later.")
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
