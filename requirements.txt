@@ -9,3 +9,4 @@ openai
 xgboost
 fpdf
 requests
+transformers
