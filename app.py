@@ -181,14 +181,15 @@ if uploaded_file:
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
-             Based on these top features: {', '.join(top5_llm_df['Feature'].tolist())},
-             suggest 3 concise and relevant marketing campaign ideas to increase premium subscriptions. Tie each idea to specific customer behavior.
+             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Readable_Feature'].tolist())}.
+             Return each idea as a paragraph. Wrap the campaign title in double quotes.
              """
             campaign_response = query_hf_mistral(rec_prompt)
+ 
             if campaign_response and "LLM error" not in campaign_response:
-                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip() and re.match(r"^[0-9]+\.\s", line)]
-                 for line in lines:
-                     st.markdown(f"- {line}")
+                 lines = [line.strip() for line in campaign_response.split("\n") if line.strip().startswith(tuple("123456789"))]
+                 cleaned = [re.sub(r'^\d+\.\s+"([^"]+)":', r'**\1**:', line) for line in lines]
+                 st.markdown("\n\n".join(cleaned))
             else:
                  st.warning("LLM recommendation could not be generated. Please try again later.")
 
