@@ -35,7 +35,6 @@ def query_hf_mistral(prompt, max_tokens=512):
         result = response.json()
         if isinstance(result, list) and 'generated_text' in result[0]:
             full_text = result[0]['generated_text']
-            # Try to strip off prompt or extract from the first numbered explanation
             explanation_start = re.split(r"\n?\s*1\.\s*", full_text, maxsplit=1)
             if len(explanation_start) == 2:
                 return "1. " + explanation_start[1].strip()
@@ -161,31 +160,26 @@ if uploaded_file:
             st.divider()
             st.markdown("### 🧠 What Influences Adoption?")
 
-            def parse_explanation_to_df(raw_text):
-                lines = raw_text.splitlines()
-                table = []
-                pattern = r"^\s*\d+\.\s*(.*?)\s*\([0-9.]+\):\s*(.*)$"
-                for line in lines:
-                    match = re.match(pattern, line)
-                    if match:
-                        feature, explanation = match.groups()
-                        table.append((feature.strip(), explanation.strip()))
-                return pd.DataFrame(table, columns=["Feature", "How does it impact?"]) if table else None
+            def parse_numbered_explanation(raw_text):
+                pattern = r"\d+\.\s*(.*?):\s*(.+)"
+                matches = re.findall(pattern, raw_text)
+                return pd.DataFrame(matches, columns=["Feature", "How does it impact?"]) if matches else None
 
             explanation_prompt = (
-                "Explain how each of the following features influences premium subscription adoption:\n"
-                + "\n".join(f"{i+1}. {row['Feature']} ({row['Impact']:.3f})" for i, row in top5_llm_df.iterrows())
+                "Explain how the following features relate to user behavior and their likelihood to adopt premium subscription. "
+                "Respond with short, business-friendly explanations for each feature as a numbered list. "
+                "Use the format: 1. <Feature>: <Explanation>\n\n" +
+                "\n".join(f"{i+1}. {row['Feature']}" for i, row in top5_llm_df.iterrows())
             )
-            
+
             explanation_response = query_hf_mistral(explanation_prompt)
-            parsed_table = parse_explanation_to_df(explanation_response)
-            
+            parsed_table = parse_numbered_explanation(explanation_response)
+
             if parsed_table is not None and not parsed_table.empty:
                 st.table(parsed_table)
             else:
                 st.warning("LLM explanation could not be parsed. Please try again later.")
 
-            
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
             Suggest 3 concise and relevant marketing campaign ideas based on these features: {', '.join(top5_llm_df['Feature'].tolist())}.
