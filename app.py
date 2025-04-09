@@ -175,11 +175,7 @@ if uploaded_file:
             Provide only business-relevant insights in table format with two columns: 'Feature' and 'How does it impact?'
             """
 
-            explanation_response = query_hf_mistral(explanation_prompt)
-            parsed_table = parse_explanation_to_df(explanation_response)
-
-            for i, row in parsed_table.iterrows():
-                st.markdown(f"**{row['Feature']}**: {row['How does it impact?']}")
+            print(explanation_prompt)
 
             st.markdown("### 🎯 Campaign Recommendations")
             rec_prompt = f"""
