@@ -7,16 +7,18 @@ import joblib
 import shap
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score
-import openai
+from transformers import pipeline
 
 # Load model and scaler
 bundle = joblib.load("marketing_classifier_bundle.pkl")
 model = bundle["model"]
 scaler = bundle["scaler"]
 
+# Load Hugging Face text-generation pipeline
+llm_pipeline = pipeline("text-generation", model="tiiuae/falcon-rw-1b", max_new_tokens=256)
+
 # --- Custom Style ---
 pink = "#f08ebc"
-light_gray = "#f5f5f5"
 
 st.set_page_config(page_title="Customer Adopter Prediction", layout="wide")
 st.markdown(f"""
@@ -33,11 +35,11 @@ st.markdown(f"""
         padding-top: 1rem;
         padding-bottom: 1rem;
     }}
-    .roi-box, .shap-box {{
-        background-color: {light_gray};
-        border-radius: 8px;
+    .box {{
+        background-color: #f5f5f5;
+        border-radius: 0.5rem;
         padding: 1rem;
-        margin: 0.5rem;
+        margin-bottom: 1.5rem;
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -68,20 +70,13 @@ if uploaded_file:
         tabs = st.tabs(["📊 Results", "💡 Insights & Campaign Suggestions"])
 
         with tabs[0]:
-            st.subheader("Prediction Results (Top 20)")
+            st.subheader("Prediction Results (Top 20 Customers)")
             st.dataframe(df_result.sort_values("Predicted_Probability", ascending=False).head(20), use_container_width=True, height=250)
             csv_download = df_result.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Predictions", data=csv_download, file_name="predicted_customers.csv", mime='text/csv')
 
         with tabs[1]:
-            st.markdown("""
-            <h3 style='color:#f08ebc;'>📊 Campaign ROI Summary & 🔍 Top Feature Insights</h3>
-            <div style='display:flex; gap:2rem;'>
-            """, unsafe_allow_html=True)
-
-            # ROI Summary Box
-            st.markdown("<div class='roi-box'>", unsafe_allow_html=True)
-            st.markdown("### 📊 Campaign ROI Summary")
+            st.markdown("<h3>📊 Campaign ROI Summary</h3>", unsafe_allow_html=True)
             cutoff = int(len(df_result) * top_k_percent / 100)
             top_customers = df_result.sort_values("Predicted_Probability", ascending=False).head(cutoff)
             n_targeted = len(top_customers)
@@ -89,70 +84,66 @@ if uploaded_file:
             total_cost = n_targeted * cost_per_customer
             total_revenue = n_predicted_adopters * revenue_per_conversion
             roi = (total_revenue - total_cost) / total_cost if total_cost > 0 else 0
-            col1, col2, col3 = st.columns(3)
-            col1.metric("🎯 Targeted Customers", n_targeted)
-            col2.metric("📈 Expected Adopters", int(n_predicted_adopters))
-            col3.metric("💰 Estimated ROI", f"{roi:.2f}")
-            st.markdown("</div>", unsafe_allow_html=True)
 
-            # SHAP Summary Box
-            st.markdown("<div class='shap-box'>", unsafe_allow_html=True)
-            st.markdown("### 🔍 Top Features Influencing Adoption")
-            explainer = shap.Explainer(model, X_scaled)
-            shap_values = explainer(X_scaled)
-            fig1 = plt.figure(figsize=(5, 3))
-            shap.plots.beeswarm(shap_values, max_display=10, show=False)
-            st.pyplot(fig1)
-            st.markdown("</div>", unsafe_allow_html=True)
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                with st.container():
+                    st.markdown("<div class='box'>", unsafe_allow_html=True)
+                    st.metric("🎯 Targeted Customers", n_targeted)
+                    st.metric("📈 Expected Adopters", int(n_predicted_adopters))
+                    st.metric("💰 Estimated ROI", f"{roi:.2f}")
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-            st.markdown("</div>", unsafe_allow_html=True)
+            with col2:
+                with st.container():
+                    st.markdown("<div class='box'>", unsafe_allow_html=True)
+                    st.markdown("### 🔍 Top Features Influencing Adoption")
+                    explainer = shap.Explainer(model, X_scaled)
+                    shap_values = explainer(X_scaled)
+                    fig = plt.figure(figsize=(5.5, 3))
+                    shap.plots.beeswarm(shap_values, max_display=10, show=False)
+                    st.pyplot(fig)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-            # LLM Insight Generation
+            # === LLM Explanations ===
+            st.markdown("<h3>📊 What Influences Adoption?</h3>", unsafe_allow_html=True)
             top_features = shap_values.abs.mean(0).values
             feature_names = X_scaled.columns
             top_feature_df = pd.DataFrame({"Feature": feature_names, "Impact": top_features})
             top_feature_df = top_feature_df.sort_values(by="Impact", ascending=False).head(5)
 
-            feature_text = "\n".join([f"{row.Feature} {row.Impact:.4f}" for _, row in top_feature_df.iterrows()])
-            prompt_explain = f"""
+            # Run LLM to explain features
+            explanation_prompt = f"""
+            You are a marketing data strategist.
             Given the following top features ranked by their impact on customer adoption:
-            Feature       Impact
-            {feature_text}
 
-            For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription.
-            Focus on providing business-relevant reasoning without technical jargon.
-            """
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a marketing data strategist."},
-                    {"role": "user", "content": prompt_explain}
-                ]
-            )
-            explanation_text = response["choices"][0]["message"]["content"]
+            {top_feature_df.to_string(index=False)}
 
-            st.subheader("🧩 What Influences Adoption?")
-            explanation_lines = explanation_text.split("\n")
-            rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in explanation_lines if ":" in line]
-            st.table(pd.DataFrame(rows, columns=["Feature", "How does it impact?"]))
-
-            # Campaign Suggestion
-            prompt_campaign = f"""
-            Based on these top features influencing adoption: {', '.join(top_feature_df['Feature'].tolist())},
-            suggest 3 targeted marketing campaigns that a business team can run to increase premium subscriptions.
-            Tie each campaign back to specific user behaviors in the features.
+            For each feature, explain what user behavior it captures and how it might relate to adoption of a premium subscription. Use a clear, business-relevant explanation.
             """
 
-            response2 = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a marketing strategist."},
-                    {"role": "user", "content": prompt_campaign}
-                ]
-            )
-            campaigns = response2["choices"][0]["message"]["content"]
-            st.subheader("💡 Campaign Recommendations")
-            st.markdown(campaigns)
+            llm_response = llm_pipeline(explanation_prompt)[0]['generated_text']
+
+            explanations = [line for line in llm_response.split("\n") if ":" in line]
+            parsed_rows = [(line.split(":")[0].strip(), line.split(":")[1].strip()) for line in explanations[:5]]
+
+            st.markdown("### 🧠 Feature Interpretations")
+            feature_exp_df = pd.DataFrame(parsed_rows, columns=["Feature", "How does it impact?"])
+            st.table(feature_exp_df)
+
+            # Run LLM to generate campaign ideas
+            campaign_prompt = f"""
+            Based on these top features influencing adoption:
+            {', '.join(top_feature_df['Feature'].tolist())}
+            Suggest 3 targeted marketing campaigns a business team can run to increase premium subscriptions. Tie each campaign back to specific user behavior.
+            """
+
+            campaign_response = llm_pipeline(campaign_prompt)[0]['generated_text']
+            ideas = [line for line in campaign_response.split("\n") if line.strip() and line[0].isdigit()]
+
+            st.markdown("### 💡 Campaign Recommendations")
+            for idea in ideas:
+                st.markdown(f"{idea}")
 
     except Exception as e:
         st.error(f"There was a problem processing your file: {e}")
